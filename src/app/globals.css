@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+/* Light is the default. Dark is opt-in via data-theme="dark" on <html>, set
+   before first paint by /theme.js so the page never flashes.
+   An attribute rather than a class on purpose: React renders className on <html>
+   and overwrites it on every render, which silently wiped the class the script
+   had just added. React does not manage attributes it never rendered. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #0a2a63;
+  --accent: #0a63d6;
+  --accent-light: #5fd4ff;
+  --muted: #f3f7fd;
+
+  /* Card / panel fill. Same as --background in light, lifted in dark so cards
+     read as raised rather than as holes. */
+  --surface: #ffffff;
+  /* Hairline and heavier divider, tinted with the foreground rather than pure
+     black so they sit inside the palette instead of on top of it. */
+  --line: rgba(10, 42, 99, 0.08);
+  --line-strong: rgba(10, 42, 99, 0.14);
+}
+
+/* Dark palette, declared twice on purpose.
+   The media query covers everyone who has not chosen a theme — which is almost
+   everyone — with no JavaScript at all, so there is nothing to run before the
+   first paint and nothing to flash. The attribute selector is the explicit
+   override the toggle writes, and it wins because it comes last. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  --background: #070c17;
+  --foreground: #e9f0fc;
+  --accent: #4b93ff;
+  --accent-light: #6ddbff;
+  --muted: #101b30;
+
+  --surface: #0d1626;
+  --line: rgba(233, 240, 252, 0.1);
+  --line-strong: rgba(233, 240, 252, 0.18);
+  }
+}
+
+[data-theme="dark"] {
+  --background: #070c17;
+  --foreground: #e9f0fc;
+  --accent: #4b93ff;
+  --accent-light: #6ddbff;
+  --muted: #101b30;
+
+  --surface: #0d1626;
+  --line: rgba(233, 240, 252, 0.1);
+  --line-strong: rgba(233, 240, 252, 0.18);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Lets the browser pick native form controls and scrollbars to match, and
+     follows the OS until the visitor overrides it below. */
+  color-scheme: light dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* CTA banner ambience. CSS keyframes rather than a JS animation so it runs even
+   when the tab has been throttled, and so it stops on its own for reduced motion. */
+@keyframes bl-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, -8%, 0) scale(1.15);
+  }
+}
+
+@keyframes bl-sheen {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  60%,
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+
+.bl-drift {
+  animation: bl-drift 16s ease-in-out infinite;
+}
+.bl-drift-slow {
+  animation: bl-drift 22s ease-in-out infinite reverse;
+}
+.bl-sheen {
+  animation: bl-sheen 7s ease-in-out infinite;
+}
+
+/* Travelling dots inside the SVG diagrams.
+   These were framer keyframes on cx/cy, which write the literal string
+   "undefined" into the attribute until the first animation frame lands — and in a
+   throttled tab that frame never lands, so every page load logged SVG errors.
+   CSS transforms are correct at first paint and need no scheduler. The per-dot
+   distance comes in as --dx/--dy so one keyframe serves every instance. */
+@keyframes bl-pulse-out {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy));
+    opacity: 0;
+  }
+}
+
+@keyframes bl-token {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(var(--tx1), 0);
+    opacity: 1;
+  }
+  88% {
+    transform: translate(var(--tx2), var(--ty2));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx2), var(--ty2));
+    opacity: 0;
+  }
+}
+
+.bl-pulse-out {
+  animation: bl-pulse-out 2.4s ease-in-out infinite;
+}
+.bl-token {
+  animation: bl-token 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bl-drift,
+  .bl-drift-slow,
+  .bl-sheen,
+  .bl-pulse-out,
+  .bl-token {
+    animation: none;
+  }
+}
+
+::selection {
+  background: var(--accent-light);
+  color: #0a2a63;
+}
