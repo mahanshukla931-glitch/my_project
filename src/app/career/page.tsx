@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MapPin, Briefcase, Clock } from "lucide-react";
+import { MapPin, Briefcase, Clock, Mail } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { CtaBanner } from "@/components/CtaBanner";
@@ -145,16 +145,24 @@ export default function CareerPage() {
             <ApplicationForm />
           </Reveal>
 
-          <p className="mt-6 text-center text-sm text-foreground/55">
-            Don&apos;t see your role? Pick &ldquo;open application&rdquo; above, or write to{" "}
+          {/* The one place the HR inbox is published — right under the form, where
+              someone who cannot use it is actually looking for an alternative. */}
+          <div className="mt-6 rounded-2xl border border-line bg-surface p-5 text-center shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-widest text-accent">
+              Talk to HR directly
+            </p>
             <a
-              href={`mailto:${CONTACT.email}?subject=${encodeURIComponent("Open application")}`}
-              className="font-semibold text-accent hover:underline"
+              href={`mailto:${CONTACT.hrEmail}?subject=${encodeURIComponent("Open application")}`}
+              className="mt-2 inline-flex items-center gap-2 text-base font-bold tracking-tight text-foreground transition hover:text-accent sm:text-lg"
             >
-              {CONTACT.email}
+              <Mail className="h-4 w-4 shrink-0 text-accent" />
+              {CONTACT.hrEmail}
             </a>
-            . We hire when we meet the right person, not only when a post is up.
-          </p>
+            <p className="mt-2 text-sm text-foreground/55">
+              Don&apos;t see your role? Pick &ldquo;open application&rdquo; above, or just mail us.
+              We hire when we meet the right person, not only when a post is up.
+            </p>
+          </div>
         </div>
       </section>
 

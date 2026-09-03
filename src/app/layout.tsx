@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ChatWidget } from "@/components/ChatWidget";
+import { CookieBanner } from "@/components/CookieBanner";
 import { SITE, localBusinessSchema, organisationSchema, websiteSchema } from "@/lib/seo";
 
 const geistSans = Geist({
@@ -88,6 +89,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         {children}
         <ChatWidget />
+        <CookieBanner />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchema) }}

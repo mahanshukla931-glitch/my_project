@@ -1,5 +1,5 @@
 ﻿import Link from "next/link";
-import { Mail, MessageSquare, MapPin } from "lucide-react";
+import { Mail, MessageSquare, MapPin, Phone } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { NAV_LINKS, SERVICES, SOCIALS, CONTACT } from "@/lib/data";
 
@@ -70,6 +70,11 @@ export function Footer() {
             <li className="flex items-start gap-3">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent-light" />
               {CONTACT.address}
+            </li>
+            <li>
+              <a href={`tel:${CONTACT.phone.replace(/\s/g, "")}`} className="flex items-center gap-3 transition hover:text-white">
+                <Phone className="h-4 w-4 shrink-0 text-accent-light" /> {CONTACT.phone}
+              </a>
             </li>
             <li>
               <a href={`mailto:${CONTACT.email}`} className="flex items-center gap-3 transition hover:text-white">

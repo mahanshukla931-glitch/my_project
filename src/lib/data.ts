@@ -1504,4 +1504,7 @@ export const CONTACT = {
   address: "D-7, Khatun B Chawl, Natwar Nagar Rd 5, Jogeshwari East, Mumbai, Maharashtra 400060",
   email: "info@brightlant.com",
   phone: "+91 9235101052",
+  // Both forms deliver here; hrEmail is published on the careers page as a direct route.
+  enquiryEmail: "brightlant@gmail.com",
+  hrEmail: "hr@brightlant.com",
 };

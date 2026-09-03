@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowRight, Check, Paperclip, Send } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, Check, Paperclip, Send, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Logo } from "@/components/Logo";
 import { CONTACT, SERVICES, OPENINGS } from "@/lib/data";
 
 /**
@@ -23,31 +24,132 @@ function Label({ children, htmlFor }: { children: React.ReactNode; htmlFor: stri
   );
 }
 
-function send(subject: string, lines: [string, FormDataEntryValue | null][]) {
+/** Only real-looking Indian mobiles: 10 digits, starts 6-9, not all one digit
+ *  and not a straight 1234567890 run. The lookaheads run in the browser's own
+ *  `pattern` check, so nothing submits until the number is plausible. */
+const PHONE_PATTERN = String.raw`(?!(\d)\1{9})(?!1234567890)[6-9]\d{9}`;
+/** type="email" alone accepts "a@b" — this insists on a real domain and TLD. */
+const EMAIL_PATTERN = String.raw`[^@\s]+@[^@\s]+\.[A-Za-z]{2,}`;
+
+/** Digits only while typing, so a pasted "+91 98xxx" cannot fail validation. */
+const phoneProps = {
+  type: "tel",
+  inputMode: "numeric" as const,
+  maxLength: 10,
+  pattern: PHONE_PATTERN,
+  title: "10-digit mobile number starting with 6, 7, 8 or 9",
+  placeholder: "9876543210",
+  onInput: (e: React.FormEvent<HTMLInputElement>) => {
+    e.currentTarget.value = e.currentTarget.value.replace(/\D/g, "").slice(0, 10);
+  },
+};
+
+const emailProps = {
+  type: "email" as const,
+  pattern: EMAIL_PATTERN,
+  title: "A working email address, e.g. you@company.com",
+};
+
+function send(to: string, subject: string, lines: [string, FormDataEntryValue | null][]) {
   const body = lines
     .filter(([, v]) => v && String(v).trim())
     .map(([k, v]) => `${k}: ${String(v).trim()}`)
     .join("\n");
-  window.location.href = `mailto:${CONTACT.email}?subject=${encodeURIComponent(
+  window.location.href = `mailto:${to}?subject=${encodeURIComponent(
     subject,
   )}&body=${encodeURIComponent(body)}`;
 }
 
-function Sent({ what }: { what: string }) {
+/**
+ * Live form validity from the browser's own constraint check, so the submit
+ * button stays dead until every required field — and every pattern — passes.
+ * `input` and `change` both bubble to the form, which covers inputs and selects.
+ */
+function useFormValidity() {
+  const [valid, setValid] = useState(false);
+  const check = (e: React.FormEvent<HTMLFormElement>) => setValid(e.currentTarget.checkValidity());
+  return [valid, { onInput: check, onChange: check }] as const;
+}
+
+/** Greyed out and unclickable until the form is complete. */
+const disabledSubmit =
+  "disabled:pointer-events-none disabled:bg-foreground/20 disabled:text-white/70 disabled:shadow-none";
+
+/**
+ * Native <dialog> rather than a hand-rolled overlay: focus trapping, Escape to
+ * close, inert background and the ::backdrop all come free from the browser.
+ */
+function SentDialog({
+  what,
+  to,
+  open,
+  onClose,
+}: {
+  what: string;
+  to: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/5 p-4 text-sm">
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-white">
-        <Check className="h-3 w-3" />
-      </span>
-      <p className="text-foreground/70">
-        Your mail app should have opened with the {what} filled in. Press send there and we will
-        reply within one working day. If nothing opened, email us directly at{" "}
-        <a href={`mailto:${CONTACT.email}`} className="font-semibold text-accent hover:underline">
-          {CONTACT.email}
-        </a>
-        .
-      </p>
-    </div>
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      aria-labelledby="sent-title"
+      className="m-auto w-[min(92vw,28rem)] overflow-hidden rounded-3xl border border-line bg-surface p-0 text-foreground shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+    >
+      <div className="relative overflow-hidden bg-[#05070d] px-6 py-7 text-center">
+        <div className="bl-drift pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent/40 blur-[90px]" />
+        <div className="relative flex flex-col items-center">
+          <Logo className="h-8 w-auto" onDark />
+          <span className="mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/40">
+            <Check className="h-7 w-7" strokeWidth={3} />
+          </span>
+        </div>
+      </div>
+
+      <div className="px-6 py-6 text-center sm:px-8">
+        <h3 id="sent-title" className="text-xl font-extrabold tracking-tight">
+          Your {what} is ready to send
+        </h3>
+        <p className="mt-2.5 text-sm leading-relaxed text-foreground/60">
+          Your mail app should have opened with everything filled in — press send there and we
+          reply within one working day.
+        </p>
+        <p className="mt-3 text-sm text-foreground/60">
+          Nothing opened? Mail us directly at{" "}
+          <a href={`mailto:${to}`} className="font-semibold text-accent hover:underline">
+            {to}
+          </a>
+          .
+        </p>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 w-full rounded-full bg-accent px-7 py-3 font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-[#0b3f91]"
+        >
+          Done
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </dialog>
   );
 }
 
@@ -55,13 +157,15 @@ function Sent({ what }: { what: string }) {
 
 export function ContactForm() {
   const [sent, setSent] = useState(false);
+  const [valid, validity] = useFormValidity();
 
   return (
     <form
+      {...validity}
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        send(`Enquiry from ${f.get("name")} — ${f.get("interest")}`, [
+        send(CONTACT.enquiryEmail, `Enquiry from ${f.get("name")} — ${f.get("interest")}`, [
           ["Name", f.get("name")],
           ["Company", f.get("company")],
           ["Email", f.get("email")],
@@ -90,11 +194,11 @@ export function ContactForm() {
         </div>
         <div>
           <Label htmlFor="c-email">Email *</Label>
-          <input id="c-email" name="email" type="email" required autoComplete="email" placeholder="you@company.com" className={field} />
+          <input id="c-email" name="email" {...emailProps} required autoComplete="email" placeholder="you@company.com" className={field} />
         </div>
         <div>
           <Label htmlFor="c-phone">Phone / WhatsApp</Label>
-          <input id="c-phone" name="phone" type="tel" autoComplete="tel" placeholder="+91 98XXX XXXXX" className={field} />
+          <input id="c-phone" name="phone" {...phoneProps} autoComplete="tel" className={field} />
         </div>
         <div>
           <Label htmlFor="c-interest">What do you need? *</Label>
@@ -137,21 +241,25 @@ export function ContactForm() {
 
       <button
         type="submit"
-        className="group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-7 py-3.5 font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-[#0b3f91] sm:w-auto"
+        disabled={!valid}
+        className={`group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-7 py-3.5 font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-[#0b3f91] sm:w-auto ${disabledSubmit}`}
       >
         Send enquiry
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </button>
 
       <p className="mt-3 text-xs text-foreground/45">
-        We reply within one working day. No newsletter, no reselling your details.
+        {valid
+          ? "We reply within one working day. No newsletter, no reselling your details."
+          : "Fill in every field marked * — with a real email and 10-digit mobile — to enable this."}
       </p>
 
-      {sent && (
-        <div className="mt-5">
-          <Sent what="enquiry" />
-        </div>
-      )}
+      <SentDialog
+        what="enquiry"
+        to={CONTACT.enquiryEmail}
+        open={sent}
+        onClose={() => setSent(false)}
+      />
     </form>
   );
 }
@@ -185,21 +293,23 @@ function Group({
 
 export function ApplicationForm() {
   const [sent, setSent] = useState(false);
+  const [valid, validity] = useFormValidity();
 
   return (
     <form
       id="apply"
+      {...validity}
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        send(`${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`, [
+        send(CONTACT.enquiryEmail, `${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`, [
           ["Name", f.get("name")],
           ["Email", f.get("email")],
           ["Phone", f.get("phone")],
           ["Applying for", f.get("role")],
           ["Full-time or internship", f.get("kind")],
           ["Experience", f.get("experience")],
-          ["Portfolio / GitHub / LinkedIn", f.get("portfolio")],
+          ["Resume (Google Drive link)", f.get("resume")],
           ["Available from", f.get("notice")],
           ["About", f.get("about")],
         ]);
@@ -234,11 +344,11 @@ export function ApplicationForm() {
             </div>
             <div>
               <Label htmlFor="a-email">Email *</Label>
-              <input id="a-email" name="email" type="email" required autoComplete="email" placeholder="you@email.com" className={field} />
+              <input id="a-email" name="email" {...emailProps} required autoComplete="email" placeholder="you@email.com" className={field} />
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="a-phone">Phone *</Label>
-              <input id="a-phone" name="phone" type="tel" required autoComplete="tel" placeholder="+91 98XXX XXXXX" className={field} />
+              <input id="a-phone" name="phone" {...phoneProps} required autoComplete="tel" className={field} />
             </div>
           </div>
         </Group>
@@ -298,8 +408,21 @@ export function ApplicationForm() {
         <Group step={3} title="Your work">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="a-portfolio">Portfolio, GitHub or LinkedIn</Label>
-              <input id="a-portfolio" name="portfolio" type="url" placeholder="https://github.com/yourname" className={field} />
+              <Label htmlFor="a-resume">Resume link (Google Drive) *</Label>
+              <input
+                id="a-resume"
+                name="resume"
+                type="url"
+                required
+                pattern="https://(drive|docs)\.google\.com/.+"
+                title="A Google Drive or Docs link, e.g. https://drive.google.com/file/d/..."
+                placeholder="https://drive.google.com/file/d/..."
+                className={field}
+              />
+              <p className="mt-2 text-xs text-foreground/45">
+                Upload your CV to Google Drive, set sharing to “Anyone with the link”, and paste
+                the link here.
+              </p>
             </div>
             <div>
               <Label htmlFor="a-about">Something you built that you are proud of *</Label>
@@ -321,7 +444,8 @@ export function ApplicationForm() {
         <div className="border-t border-line pt-6">
           <button
             type="submit"
-            className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-7 py-4 font-semibold text-white shadow-lg shadow-accent/25 transition hover:-translate-y-0.5 hover:bg-[#0b3f91] hover:shadow-xl hover:shadow-accent/30"
+            disabled={!valid}
+            className={`group inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-7 py-4 font-semibold text-white shadow-lg shadow-accent/25 transition hover:-translate-y-0.5 hover:bg-[#0b3f91] hover:shadow-xl hover:shadow-accent/30 ${disabledSubmit}`}
           >
             Send application
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -329,12 +453,18 @@ export function ApplicationForm() {
 
           <p className="mt-3 flex items-start gap-2 text-xs text-foreground/45">
             <Paperclip className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Attach your CV in the mail that opens before sending. We reply to every application,
-            either way.
+            {valid
+              ? "Make sure your Drive link is open to anyone with the link. We reply to every application, either way."
+              : "Complete every field marked * — including a shareable Google Drive resume link — to enable this."}
           </p>
         </div>
 
-        {sent && <Sent what="application" />}
+        <SentDialog
+          what="application"
+          to={CONTACT.enquiryEmail}
+          open={sent}
+          onClose={() => setSent(false)}
+        />
       </div>
     </form>
   );
