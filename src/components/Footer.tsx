@@ -13,11 +13,8 @@ export function Footer() {
           side by side, and only the brand and contact blocks span the full width. */}
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-10 px-5 py-12 sm:gap-x-10 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr] lg:gap-12 lg:py-16">
         <div className="col-span-2 lg:col-span-1">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center" aria-label="Brightlant home">
             <Logo className="h-9 w-auto" onDark />
-            <span className="text-xl font-bold tracking-tight">
-              Bright<span className="text-accent-light">lant</span>
-            </span>
           </Link>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/60">
             We build ultra-fast, secure, and visually stunning digital products for startups and

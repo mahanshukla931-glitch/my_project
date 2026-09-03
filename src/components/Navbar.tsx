@@ -67,11 +67,8 @@ export function Navbar() {
         className="sticky top-0 z-50 border-b border-line bg-surface/85 backdrop-blur-md relative"
       >
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <Link href="/" className="flex items-center gap-2">
-            <Logo className="h-9 w-auto" />
-            <span className="text-xl font-bold tracking-tight text-foreground">
-              Bright<span className="text-accent">lant</span>
-            </span>
+          <Link href="/" className="flex items-center" aria-label="Brightlant home">
+            <Logo className="h-9 w-auto" priority />
           </Link>
 
           <ul className="hidden items-center gap-1 text-sm font-medium text-foreground/70 md:flex">

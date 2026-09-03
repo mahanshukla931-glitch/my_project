@@ -1,48 +1,47 @@
-import { useId } from "react";
+import Image from "next/image";
 
 /**
- * The Brightlant mark.
+ * The Brightlant logo, straight from the supplied artwork.
  *
- * `onDark` swaps the near-black wedge for a light one. On the black footer and the
- * chat header the default wedge disappears into the background, which leaves the
- * mark reading as a thin blue sliver rather than the logo.
+ * `mark` drops the wordmark and renders the chevron alone — for the chat avatar,
+ * where the lockup would be unreadable at 24px and the panel already says the
+ * brand name underneath it.
  *
- * The gradient ids come from useId() because the mark renders three times on a
- * page. Duplicate SVG ids all resolve to the first match in the document, so a
- * second variant would silently inherit the first one's colours.
+ * `onDark` swaps in the lightened artwork. The navy in the original disappears
+ * into the black footer and chat header, which leaves the logo reading as a thin
+ * cyan sliver rather than the mark.
  */
+const ART = {
+  "logo": { w: 518, h: 159 },
+  "logo-light": { w: 518, h: 159 },
+  "logo-mark": { w: 123, h: 159 },
+  "logo-mark-light": { w: 123, h: 159 },
+} as const;
+
 export function Logo({
   className = "h-9 w-auto",
   onDark = false,
+  mark = false,
+  priority = false,
 }: {
   className?: string;
   onDark?: boolean;
+  mark?: boolean;
+  priority?: boolean;
 }) {
-  const uid = useId().replace(/:/g, "");
-  const a = `blt-a-${uid}`;
-  const b = `blt-b-${uid}`;
+  const name = `logo${mark ? "-mark" : ""}${onDark ? "-light" : ""}` as keyof typeof ART;
+  const { w, h } = ART[name];
 
   return (
-    <svg
-      viewBox="0 0 46 40"
-      // shrink-0 always: an SVG with w-auto is a flex item with no width basis, so
-      // any tight flex row squashes the mark down to a sliver.
+    <Image
+      src={`/${name}.png`}
+      alt="Brightlant"
+      width={w}
+      height={h}
+      priority={priority}
+      // shrink-0 always: an image with w-auto is a flex item with no width basis,
+      // so any tight flex row squashes the logo down to a sliver.
       className={`shrink-0 ${className}`}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient id={a} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#5fd4ff" />
-          <stop offset="1" stopColor="#0a63d6" />
-        </linearGradient>
-        <linearGradient id={b} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#2f8fef" />
-          <stop offset="1" stopColor="#0b3f91" />
-        </linearGradient>
-      </defs>
-      <path d="M4 3 L22 3 L40 20 L23 20 Z" fill={`url(#${a})`} />
-      <path d="M4 20 L23 20 L40 20 L22 37 L4 37 Z" fill={`url(#${b})`} />
-      <path d="M4 3 L4 37 L15 27 L15 13 Z" fill={onDark ? "#e9f0fc" : "#0a2a63"} />
-    </svg>
+    />
   );
 }

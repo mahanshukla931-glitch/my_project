@@ -274,7 +274,7 @@ export function ChatWidget() {
           <div className="bl-drift pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-accent/40 blur-[80px]" />
           <div className="relative flex items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm">
-              <Logo className="h-6 w-auto" onDark />
+              <Logo className="h-6 w-auto" onDark mark />
             </span>
             <div className="min-w-0 flex-1">
               <p className="font-bold leading-tight text-white">Sara</p>
