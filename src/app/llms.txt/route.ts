@@ -21,7 +21,7 @@ export function GET() {
 
 - Location: D-7, Khatun B Chawl, Natwar Nagar Rd 5, Jogeshwari East, Mumbai, Maharashtra 400060, India
 - Email: ${CONTACT.email}
-- Office hours: Monday–Friday 10:00–19:00 IST, Saturday 10:00–14:00 IST
+- Office hours: Monday–Saturday 10:00–18:00 IST, closed Sunday
 - Languages: English, Hindi, Marathi
 - Pricing model: fixed scope, fixed price, agreed before work starts. Not billed hourly.
 - Code ownership: the client owns the repository and all accounts from day one.

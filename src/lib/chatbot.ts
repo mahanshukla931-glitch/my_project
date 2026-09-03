@@ -84,7 +84,7 @@ const contactBits: Entry[] = [
   {
     weight: 1.8,
     q: "How do I contact Brightlant?",
-    a: `Email ${CONTACT.email}, or use the contact form and we reply within one working day. Office hours are 10:00–19:00 IST Monday to Friday, and 10:00–14:00 on Saturday.`,
+    a: `Email ${CONTACT.email}, or use the contact form and we reply within one working day. Office hours are 10:00–18:00 IST, Monday to Saturday.`,
     tags: "contact reach email talk speak call phone number get in touch enquiry hours timing open",
     href: "/contact",
     label: "Open the contact form",

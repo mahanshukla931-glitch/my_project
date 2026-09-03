@@ -80,12 +80,8 @@ export default function ContactPage() {
                 <span className="block font-bold">Office hours</span>
                 <dl className="mt-2 space-y-1 text-sm text-foreground/60">
                   <div className="flex justify-between gap-6">
-                    <dt>Monday – Friday</dt>
-                    <dd className="font-medium text-foreground/75">10:00 – 19:00 IST</dd>
-                  </div>
-                  <div className="flex justify-between gap-6">
-                    <dt>Saturday</dt>
-                    <dd className="font-medium text-foreground/75">10:00 – 14:00 IST</dd>
+                    <dt>Monday – Saturday</dt>
+                    <dd className="font-medium text-foreground/75">10:00 – 18:00 IST</dd>
                   </div>
                   <div className="flex justify-between gap-6">
                     <dt>Sunday</dt>
