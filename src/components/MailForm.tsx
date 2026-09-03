@@ -50,14 +50,47 @@ const emailProps = {
   title: "A working email address, e.g. you@company.com",
 };
 
-function send(to: string, subject: string, lines: [string, FormDataEntryValue | null][]) {
-  const body = lines
-    .filter(([, v]) => v && String(v).trim())
-    .map(([k, v]) => `${k}: ${String(v).trim()}`)
-    .join("\n");
+/**
+ * Set NEXT_PUBLIC_FORMSPREE_ID to the id from a formspree.io form (the part
+ * after /f/) and submissions post straight to the inbox. Leave it unset and
+ * everything still works — it falls back to the mail-app handoff below.
+ */
+const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID;
+
+/** How the message left: posted by the server, or handed to the visitor's mail app. */
+type Delivery = "posted" | "handoff";
+
+async function send(
+  to: string,
+  subject: string,
+  lines: [string, FormDataEntryValue | null][],
+): Promise<Delivery> {
+  const filled = lines.filter(([, v]) => v && String(v).trim());
+
+  if (FORMSPREE_ID) {
+    try {
+      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          _subject: subject,
+          // Formspree reads `email` for Reply-To, so hitting reply answers the
+          // person who filled the form rather than the robot.
+          email: filled.find(([k]) => k === "Email")?.[1],
+          ...Object.fromEntries(filled),
+        }),
+      });
+      if (res.ok) return "posted";
+    } catch {
+      // Offline, blocked, or Formspree down — fall through rather than lose the lead.
+    }
+  }
+
+  const body = filled.map(([k, v]) => `${k}: ${String(v).trim()}`).join("\n");
   window.location.href = `mailto:${to}?subject=${encodeURIComponent(
     subject,
   )}&body=${encodeURIComponent(body)}`;
+  return "handoff";
 }
 
 /**
@@ -82,14 +115,15 @@ const disabledSubmit =
 function SentDialog({
   what,
   to,
-  open,
+  delivery,
   onClose,
 }: {
   what: string;
   to: string;
-  open: boolean;
+  delivery: Delivery | null;
   onClose: () => void;
 }) {
+  const open = delivery !== null;
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -118,19 +152,22 @@ function SentDialog({
 
       <div className="px-6 py-6 text-center sm:px-8">
         <h3 id="sent-title" className="text-xl font-extrabold tracking-tight">
-          Your {what} is ready to send
+          {delivery === "posted" ? `Your ${what} is with us` : `Your ${what} is ready to send`}
         </h3>
         <p className="mt-2.5 text-sm leading-relaxed text-foreground/60">
-          Your mail app should have opened with everything filled in — press send there and we
-          reply within one working day.
+          {delivery === "posted"
+            ? "Thank you — it landed in our inbox and we reply within one working day."
+            : "Your mail app should have opened with everything filled in — press send there and we reply within one working day."}
         </p>
-        <p className="mt-3 text-sm text-foreground/60">
-          Nothing opened? Mail us directly at{" "}
-          <a href={`mailto:${to}`} className="font-semibold text-accent hover:underline">
-            {to}
-          </a>
-          .
-        </p>
+        {delivery === "handoff" && (
+          <p className="mt-3 text-sm text-foreground/60">
+            Nothing opened? Mail us directly at{" "}
+            <a href={`mailto:${to}`} className="font-semibold text-accent hover:underline">
+              {to}
+            </a>
+            .
+          </p>
+        )}
 
         <button
           type="button"
@@ -156,25 +193,29 @@ function SentDialog({
 /* ---------------------------------------------------------------- contact --- */
 
 export function ContactForm() {
-  const [sent, setSent] = useState(false);
+  const [delivery, setDelivery] = useState<Delivery | null>(null);
+  const [busy, setBusy] = useState(false);
   const [valid, validity] = useFormValidity();
 
   return (
     <form
       {...validity}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        send(CONTACT.enquiryEmail, `Enquiry from ${f.get("name")} — ${f.get("interest")}`, [
-          ["Name", f.get("name")],
-          ["Company", f.get("company")],
-          ["Email", f.get("email")],
-          ["Phone", f.get("phone")],
-          ["Interested in", f.get("interest")],
-          ["Budget", f.get("budget")],
-          ["Message", f.get("message")],
-        ]);
-        setSent(true);
+        setBusy(true);
+        setDelivery(
+          await send(CONTACT.enquiryEmail, `Enquiry from ${f.get("name")} — ${f.get("interest")}`, [
+            ["Name", f.get("name")],
+            ["Company", f.get("company")],
+            ["Email", f.get("email")],
+            ["Phone", f.get("phone")],
+            ["Interested in", f.get("interest")],
+            ["Budget", f.get("budget")],
+            ["Message", f.get("message")],
+          ]),
+        );
+        setBusy(false);
       }}
       className="rounded-3xl border border-line bg-surface p-6 shadow-sm sm:p-8"
     >
@@ -241,10 +282,10 @@ export function ContactForm() {
 
       <button
         type="submit"
-        disabled={!valid}
+        disabled={!valid || busy}
         className={`group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-7 py-3.5 font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-[#0b3f91] sm:w-auto ${disabledSubmit}`}
       >
-        Send enquiry
+        {busy ? "Sending…" : "Send enquiry"}
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </button>
 
@@ -257,8 +298,8 @@ export function ContactForm() {
       <SentDialog
         what="enquiry"
         to={CONTACT.enquiryEmail}
-        open={sent}
-        onClose={() => setSent(false)}
+        delivery={delivery}
+        onClose={() => setDelivery(null)}
       />
     </form>
   );
@@ -292,28 +333,32 @@ function Group({
 }
 
 export function ApplicationForm() {
-  const [sent, setSent] = useState(false);
+  const [delivery, setDelivery] = useState<Delivery | null>(null);
+  const [busy, setBusy] = useState(false);
   const [valid, validity] = useFormValidity();
 
   return (
     <form
       id="apply"
       {...validity}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        send(CONTACT.enquiryEmail, `${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`, [
-          ["Name", f.get("name")],
-          ["Email", f.get("email")],
-          ["Phone", f.get("phone")],
-          ["Applying for", f.get("role")],
-          ["Full-time or internship", f.get("kind")],
-          ["Experience", f.get("experience")],
-          ["Resume (Google Drive link)", f.get("resume")],
-          ["Available from", f.get("notice")],
-          ["About", f.get("about")],
-        ]);
-        setSent(true);
+        setBusy(true);
+        setDelivery(
+          await send(CONTACT.enquiryEmail, `${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`, [
+            ["Name", f.get("name")],
+            ["Email", f.get("email")],
+            ["Phone", f.get("phone")],
+            ["Applying for", f.get("role")],
+            ["Full-time or internship", f.get("kind")],
+            ["Experience", f.get("experience")],
+            ["Resume (Google Drive link)", f.get("resume")],
+            ["Available from", f.get("notice")],
+            ["About", f.get("about")],
+          ]),
+        );
+        setBusy(false);
       }}
       className="overflow-hidden rounded-3xl border border-line bg-surface shadow-xl shadow-accent/5"
     >
@@ -444,10 +489,10 @@ export function ApplicationForm() {
         <div className="border-t border-line pt-6">
           <button
             type="submit"
-            disabled={!valid}
+            disabled={!valid || busy}
             className={`group inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-7 py-4 font-semibold text-white shadow-lg shadow-accent/25 transition hover:-translate-y-0.5 hover:bg-[#0b3f91] hover:shadow-xl hover:shadow-accent/30 ${disabledSubmit}`}
           >
-            Send application
+            {busy ? "Sending…" : "Send application"}
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </button>
 
@@ -462,8 +507,8 @@ export function ApplicationForm() {
         <SentDialog
           what="application"
           to={CONTACT.enquiryEmail}
-          open={sent}
-          onClose={() => setSent(false)}
+          delivery={delivery}
+          onClose={() => setDelivery(null)}
         />
       </div>
     </form>
