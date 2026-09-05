@@ -7,8 +7,9 @@ import { CONTACT, SERVICES, OPENINGS } from "@/lib/data";
 
 /**
  * Submissions POST to /api/contact, which mails them from the server over Gmail
- * SMTP. If that call fails (offline, server down) we fall back to composing the
- * same message in the visitor's own mail app rather than losing the lead.
+ * SMTP. Nothing ever opens the visitor's own mail app: on a phone that quietly
+ * shifts the work onto them, and on a desktop with no mail client configured it
+ * looks like the button did nothing at all. A failure says so instead.
  */
 const field =
   "w-full rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-foreground/35 focus:border-accent focus:ring-2 focus:ring-accent/20";
@@ -47,11 +48,10 @@ const emailProps = {
   title: "A working email address, e.g. you@company.com",
 };
 
-/** How the message left: posted by the server, or handed to the visitor's mail app. */
-type Delivery = "posted" | "handoff";
+/** Whether the server accepted the message and mailed it. */
+type Delivery = "sent" | "failed";
 
 async function send(
-  to: string,
   subject: string,
   lines: [string, FormDataEntryValue | null][],
 ): Promise<Delivery> {
@@ -70,16 +70,10 @@ async function send(
         lines: filled,
       }),
     });
-    if (res.ok) return "posted";
+    return res.ok ? "sent" : "failed";
   } catch {
-    // Offline or the server is down — fall through rather than lose the lead.
+    return "failed";
   }
-
-  const body = filled.map(([k, v]) => `${k}: ${v}`).join("\n");
-  window.location.href = `mailto:${to}?subject=${encodeURIComponent(
-    subject,
-  )}&body=${encodeURIComponent(body)}`;
-  return "handoff";
 }
 
 /**
@@ -113,6 +107,7 @@ function SentDialog({
   onClose: () => void;
 }) {
   const open = delivery !== null;
+  const sent = delivery === "sent";
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -133,24 +128,32 @@ function SentDialog({
         <div className="bl-drift pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent/40 blur-[90px]" />
         <div className="relative flex flex-col items-center">
           <Logo className="h-8 w-auto" onDark />
-          <span className="mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/40">
-            <Check className="h-7 w-7" strokeWidth={3} />
+          <span
+            className={`mt-5 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg ${
+              sent ? "bg-accent shadow-accent/40" : "bg-red-500 shadow-red-500/40"
+            }`}
+          >
+            {sent ? (
+              <Check className="h-7 w-7" strokeWidth={3} />
+            ) : (
+              <X className="h-7 w-7" strokeWidth={3} />
+            )}
           </span>
         </div>
       </div>
 
       <div className="px-6 py-6 text-center sm:px-8">
         <h3 id="sent-title" className="text-xl font-extrabold tracking-tight">
-          {delivery === "posted" ? `Your ${what} is with us` : `Your ${what} is ready to send`}
+          {sent ? `Your ${what} is with us` : `Your ${what} did not go through`}
         </h3>
         <p className="mt-2.5 text-sm leading-relaxed text-foreground/60">
-          {delivery === "posted"
+          {sent
             ? "Thank you — it landed in our inbox and we reply within one working day."
-            : "Your mail app should have opened with everything filled in — press send there and we reply within one working day."}
+            : "Something went wrong at our end, so nothing was sent. Your answers are still in the form — please try once more."}
         </p>
-        {delivery === "handoff" && (
+        {!sent && (
           <p className="mt-3 text-sm text-foreground/60">
-            Nothing opened? Mail us directly at{" "}
+            Still not working? Mail us directly at{" "}
             <a href={`mailto:${to}`} className="font-semibold text-accent hover:underline">
               {to}
             </a>
@@ -163,7 +166,7 @@ function SentDialog({
           onClick={onClose}
           className="mt-6 w-full rounded-full bg-accent px-7 py-3 font-semibold text-white shadow-lg shadow-accent/25 transition hover:bg-[#0b3f91]"
         >
-          Done
+          {sent ? "Done" : "Try again"}
         </button>
       </div>
 
@@ -194,7 +197,7 @@ export function ContactForm() {
         const f = new FormData(e.currentTarget);
         setBusy(true);
         setDelivery(
-          await send(CONTACT.enquiryEmail, `Enquiry from ${f.get("name")} — ${f.get("interest")}`, [
+          await send(`Enquiry from ${f.get("name")} — ${f.get("interest")}`, [
             ["Name", f.get("name")],
             ["Company", f.get("company")],
             ["Email", f.get("email")],
@@ -335,7 +338,7 @@ export function ApplicationForm() {
         const f = new FormData(e.currentTarget);
         setBusy(true);
         setDelivery(
-          await send(CONTACT.enquiryEmail, `${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`, [
+          await send(`${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`, [
             ["Name", f.get("name")],
             ["Email", f.get("email")],
             ["Phone", f.get("phone")],
