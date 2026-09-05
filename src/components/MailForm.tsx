@@ -6,12 +6,9 @@ import { Logo } from "@/components/Logo";
 import { CONTACT, SERVICES, OPENINGS } from "@/lib/data";
 
 /**
- * There is no backend and no mail provider wired up, so submitting composes a
- * pre-filled email in the visitor's own mail client. It genuinely delivers, needs
- * no secrets, and cannot silently drop a lead the way a fake "thanks!" would.
- *
- * ponytail: mailto handoff — swap `send()` for a POST to an API route the day an
- * email service (Resend, SES, Formspree) is set up. Nothing else has to change.
+ * Submissions POST to /api/contact, which mails them from the server over Gmail
+ * SMTP. If that call fails (offline, server down) we fall back to composing the
+ * same message in the visitor's own mail app rather than losing the lead.
  */
 const field =
   "w-full rounded-xl border border-line-strong bg-surface px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-foreground/35 focus:border-accent focus:ring-2 focus:ring-accent/20";
@@ -50,13 +47,6 @@ const emailProps = {
   title: "A working email address, e.g. you@company.com",
 };
 
-/**
- * Set NEXT_PUBLIC_FORMSPREE_ID to the id from a formspree.io form (the part
- * after /f/) and submissions post straight to the inbox. Leave it unset and
- * everything still works — it falls back to the mail-app handoff below.
- */
-const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID;
-
 /** How the message left: posted by the server, or handed to the visitor's mail app. */
 type Delivery = "posted" | "handoff";
 
@@ -65,28 +55,27 @@ async function send(
   subject: string,
   lines: [string, FormDataEntryValue | null][],
 ): Promise<Delivery> {
-  const filled = lines.filter(([, v]) => v && String(v).trim());
+  const filled = lines
+    .filter(([, v]) => v && String(v).trim())
+    .map(([k, v]) => [k, String(v).trim()] as [string, string]);
 
-  if (FORMSPREE_ID) {
-    try {
-      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          _subject: subject,
-          // Formspree reads `email` for Reply-To, so hitting reply answers the
-          // person who filled the form rather than the robot.
-          email: filled.find(([k]) => k === "Email")?.[1],
-          ...Object.fromEntries(filled),
-        }),
-      });
-      if (res.ok) return "posted";
-    } catch {
-      // Offline, blocked, or Formspree down — fall through rather than lose the lead.
-    }
+  try {
+    const res = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject,
+        // So hitting reply answers the person who filled the form.
+        replyTo: filled.find(([k]) => k === "Email")?.[1],
+        lines: filled,
+      }),
+    });
+    if (res.ok) return "posted";
+  } catch {
+    // Offline or the server is down — fall through rather than lose the lead.
   }
 
-  const body = filled.map(([k, v]) => `${k}: ${String(v).trim()}`).join("\n");
+  const body = filled.map(([k, v]) => `${k}: ${v}`).join("\n");
   window.location.href = `mailto:${to}?subject=${encodeURIComponent(
     subject,
   )}&body=${encodeURIComponent(body)}`;
