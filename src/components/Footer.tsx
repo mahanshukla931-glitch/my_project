@@ -21,10 +21,12 @@ export function Footer() {
             enterprises across India.
           </p>
           <div className="mt-5 flex gap-3">
-            {SOCIALS.map((s) => (
+            {SOCIALS.filter((s) => s.href !== "#").map((s) => (
               <a
                 key={s.label}
                 href={s.href}
+                target="_blank"
+                rel="noreferrer"
                 aria-label={s.label}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition hover:bg-accent"
               >
