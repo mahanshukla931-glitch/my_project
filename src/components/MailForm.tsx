@@ -54,27 +54,52 @@ type Delivery = "sent" | "failed";
 async function send(
   subject: string,
   lines: [string, FormDataEntryValue | null][],
+  file?: File | null,
 ): Promise<Delivery> {
   const filled = lines
     .filter(([, v]) => v && String(v).trim())
     .map(([k, v]) => [k, String(v).trim()] as [string, string]);
 
+  // Multipart rather than JSON, so an application can carry the CV itself.
+  const body = new FormData();
+  body.set(
+    "payload",
+    JSON.stringify({
+      subject,
+      // So hitting reply answers the person who filled the form.
+      replyTo: filled.find(([k]) => k === "Email")?.[1],
+      lines: filled,
+    }),
+  );
+  if (file?.size) body.set("file", file);
+
   try {
-    const res = await fetch("/api/contact", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subject,
-        // So hitting reply answers the person who filled the form.
-        replyTo: filled.find(([k]) => k === "Email")?.[1],
-        lines: filled,
-      }),
-    });
+    const res = await fetch("/api/contact", { method: "POST", body });
     return res.ok ? "sent" : "failed";
   } catch {
     return "failed";
   }
 }
+
+/** Gmail takes 25 MB, but Vercel caps a request body at 4.5 MB — and a CV that
+ *  big is a scanned photo album, not a resume. */
+const MAX_RESUME_MB = 4;
+const RESUME_TYPES = ".pdf,.doc,.docx";
+
+/** Size is the one rule the browser cannot check on its own, so it goes in as a
+ *  custom validity message and blocks submit like any other failed field. */
+const resumeProps = {
+  type: "file" as const,
+  accept: RESUME_TYPES,
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.currentTarget.files?.[0];
+    e.currentTarget.setCustomValidity(
+      f && f.size > MAX_RESUME_MB * 1024 * 1024
+        ? `That file is ${(f.size / 1024 / 1024).toFixed(1)} MB — please keep it under ${MAX_RESUME_MB} MB.`
+        : "",
+    );
+  },
+};
 
 /**
  * Live form validity from the browser's own constraint check, so the submit
@@ -336,19 +361,24 @@ export function ApplicationForm() {
       onSubmit={async (e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
+        const resume = f.get("resume") as File | null;
         setBusy(true);
         setDelivery(
-          await send(`${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`, [
-            ["Name", f.get("name")],
-            ["Email", f.get("email")],
-            ["Phone", f.get("phone")],
-            ["Applying for", f.get("role")],
-            ["Full-time or internship", f.get("kind")],
-            ["Experience", f.get("experience")],
-            ["Resume (Google Drive link)", f.get("resume")],
-            ["Available from", f.get("notice")],
-            ["About", f.get("about")],
-          ]),
+          await send(
+            `${f.get("kind")}: ${f.get("role")} — ${f.get("name")}`,
+            [
+              ["Name", f.get("name")],
+              ["Email", f.get("email")],
+              ["Phone", f.get("phone")],
+              ["Applying for", f.get("role")],
+              ["Full-time or internship", f.get("kind")],
+              ["Experience", f.get("experience")],
+              ["Resume", resume?.name ? `${resume.name} (attached)` : ""],
+              ["Available from", f.get("notice")],
+              ["About", f.get("about")],
+            ],
+            resume,
+          ),
         );
         setBusy(false);
       }}
@@ -445,20 +475,17 @@ export function ApplicationForm() {
         <Group step={3} title="Your work">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="a-resume">Resume link (Google Drive) *</Label>
+              <Label htmlFor="a-resume">Resume — PDF or Word *</Label>
               <input
                 id="a-resume"
                 name="resume"
-                type="url"
+                {...resumeProps}
                 required
-                pattern="https://(drive|docs)\.google\.com/.+"
-                title="A Google Drive or Docs link, e.g. https://drive.google.com/file/d/..."
-                placeholder="https://drive.google.com/file/d/..."
-                className={field}
+                className={`${field} py-2.5 file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-accent`}
               />
               <p className="mt-2 text-xs text-foreground/45">
-                Upload your CV to Google Drive, set sharing to “Anyone with the link”, and paste
-                the link here.
+                Pick the file from your phone or laptop — .pdf, .doc or .docx, up to {MAX_RESUME_MB}{" "}
+                MB. It reaches us attached to your application, so no sharing links to set up.
               </p>
             </div>
             <div>
@@ -491,8 +518,8 @@ export function ApplicationForm() {
           <p className="mt-3 flex items-start gap-2 text-xs text-foreground/45">
             <Paperclip className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {valid
-              ? "Make sure your Drive link is open to anyone with the link. We reply to every application, either way."
-              : "Complete every field marked * — including a shareable Google Drive resume link — to enable this."}
+              ? "Your resume goes along with the form. We reply to every application, either way."
+              : `Complete every field marked * — including a resume under ${MAX_RESUME_MB} MB — to enable this.`}
           </p>
         </div>
 

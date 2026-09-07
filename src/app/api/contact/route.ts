@@ -9,6 +9,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+/** Vercel refuses a request body over 4.5 MB, so the resume has to stay under it. */
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const RESUME_NAME = /[.](pdf|docx?)$/i;
+
 /** Form input goes straight into the mail body, so it is escaped, not trusted. */
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -45,9 +49,19 @@ export async function POST(request: Request) {
   }
 
   let subject: string, replyTo: string | undefined, lines: [string, string][];
+  let file: File | null = null;
   try {
-    ({ subject, replyTo, lines } = await request.json());
+    const form = await request.formData();
+    ({ subject, replyTo, lines } = JSON.parse(String(form.get("payload"))));
     if (!subject || !Array.isArray(lines)) throw new Error("bad shape");
+
+    // The resume, when one came with it. Re-checked here because the browser's
+    // accept and size rules are a convenience, not a boundary.
+    const f = form.get("file");
+    if (f instanceof File && f.size > 0) {
+      if (f.size > MAX_FILE_BYTES || !RESUME_NAME.test(f.name)) throw new Error("bad file");
+      file = f;
+    }
   } catch {
     return Response.json({ error: "Bad request" }, { status: 400 });
   }
@@ -60,6 +74,9 @@ export async function POST(request: Request) {
       subject,
       text: lines.map(([k, v]) => `${k}: ${v}`).join("\n"),
       html: html(subject, lines),
+      attachments: file
+        ? [{ filename: file.name, content: Buffer.from(await file.arrayBuffer()) }]
+        : undefined,
     });
     return Response.json({ ok: true });
   } catch (err) {
